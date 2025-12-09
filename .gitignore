@@ -1,0 +1,6 @@
+cabcache*/
+SourceDir
+*.zip
+*.msi
+*.wixpdb
+*.log

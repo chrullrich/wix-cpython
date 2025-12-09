@@ -1,0 +1,181 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+
+<!-- Repackage Python.
+
+     There are some differences between this and the burn bundle:
+
+     - The x86 package installs into a path without the "-32" suffix
+     - Some of the Registry values are not written
+     - The shell command "Open with Idle" is not created
+
+     Required external definitions:
+
+     Variables (-d):
+     - Platform: Architecture (x64, x86)
+     - VerMajor: Major version (e.g. 3)
+     - VerMinor: Minor version (e.g. 13)
+     - VerBuildPublic: Public build version (e.g. 11 for 3.13.11)
+     - VerBuildInternal: Internal build version (e.g. 11150 for 3.13.11)
+     - UpgradeCode: The value of the UPGRADECODE property,
+                    unique for each version and architecture
+
+     Bind paths (-b):
+     - Python: Path to the top-level directory (e.g. SourceDir)
+-->
+
+<!-- Variously formatted version numbers -->
+<?define VersionMM = "$(VerMajor).$(VerMinor)"?>
+<?define VersionMMB = "$(VersionMM).$(VerBuildPublic)"?>
+<?define VersionDir = "Python$(VerMajor)$(VerMinor)"?>
+<?define ProductVersion = "$(VersionMM).$(VerBuildInternal)"?>
+
+<!-- Strings used in Registry values -->
+<?if "$(Platform)" = "x64"?>
+  <?define PythonCoreSubkey = "$(VersionMM)"?>
+  <?define RegistryPlatform = "64-bit"?>
+  <?define RegistrySysArch = "64bit"?>
+<?elseif "$(Platform)" = "x86"?>
+  <?define PythonCoreSubkey = "$(VersionMM)-32"?>
+  <?define RegistryPlatform = "32-bit"?>
+  <?define RegistrySysArch = "32bit"?>
+<?else?>
+  <?error Invalid platform: $Platform ?>
+<?endif?>
+
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <Package Name="Python $(VersionMMB) ($(Platform))"
+           Language="0"
+           Version="$(ProductVersion)"
+           Manufacturer="Python Software Foundation"
+           UpgradeCode="$(UpgradeCode)"
+           InstallerVersion="405">
+
+    <MajorUpgrade DowngradeErrorMessage="!(loc.DowngradeError)"
+                  Schedule="afterInstallExecute"/>
+    <Media Cabinet="media1.cab" EmbedCab="yes" Id="1" CompressionLevel="high"/>
+
+    <!-- https://stackoverflow.com/a/33402698 -->
+    <InstallExecuteSequence>
+      <RemoveShortcuts Condition="Installed AND NOT UPGRADINGPRODUCTCODE"/>
+    </InstallExecuteSequence>
+
+    <Property Id="ARPURLINFOABOUT" Value="https://www.python.org/"/>
+
+    <!-- Icons for the start menu shortcuts. -->
+    <Icon Id="pythonconsole.ico" SourceFile="python-console.ico"/>
+    <Icon Id="python.ico" SourceFile="python.ico"/>
+
+    <Feature Id="Python" Level="1" Title="Python Runtime">
+      <ComponentGroupRef Id="PythonFiles"/>
+      <Feature Id="Documentation" Level="2" Title="Documentation">
+        <ComponentGroupRef Id="DocumentationFiles"/>
+      </Feature>
+      <Feature Id="ExtensionAPI" Level="3" Title="Development Files">
+        <ComponentGroupRef Id="DevelopmentFiles"/>
+      </Feature>
+      <Feature Id="TclTk" Level="9" Title="Tcl/Tk">
+        <ComponentGroupRef Id="TclTkFiles"/>
+      </Feature>
+    </Feature>
+
+  <!-- Include and Exclude patterns are case-sensitive. -->
+
+  <ComponentGroup Id="PythonFiles" Directory="INSTALLFOLDER">
+    <Files Include="!(bindpath.Python)\**">
+      <Exclude Files="!(bindpath.Python)\DLLs\tcl86t.dll"/>
+      <Exclude Files="!(bindpath.Python)\DLLs\tk86t.dll"/>
+      <Exclude Files="!(bindpath.Python)\DLLs\_tkinter.pyd"/>
+      <Exclude Files="!(bindpath.Python)\Doc\**"/>
+      <Exclude Files="!(bindpath.Python)\include\**"/>
+      <Exclude Files="!(bindpath.Python)\Lib\tkinter\**"/>
+      <Exclude Files="!(bindpath.Python)\libs\**"/>
+      <Exclude Files="!(bindpath.Python)\tcl\**"/>
+      <Exclude Files="!(bindpath.Python)\__install__.json"/>
+      <Exclude Files="!(bindpath.Python)\python.exe"/>
+      <Exclude Files="!(bindpath.Python)\pythonw.exe"/>
+    </Files>
+
+    <!-- We continue to use the Python Launcher, therefore we need some
+         Registry bits in place. This reimplements the applicable parts
+         (minus the InstalledFeatures key) of what the burn bundle does. -->
+    <Component>
+      <File Id="python.exe" Source="!(bindpath.Python)\python.exe">
+        <Shortcut Id="Python.exe"
+                  Icon="pythonconsole.ico"
+                  Directory="PythonVersFolder"
+                  Name="Python $(VersionMMB)"/>
+      </File>
+      <RegistryKey Root="HKLM" Key="SOFTWARE\Python\PythonCore\$(PythonCoreSubkey)">
+        <RegistryValue Name="DisplayName" Value="Python $(VersionMM) ($(RegistryPlatform))"/>
+        <RegistryValue Name="SupportUrl" Value="https://docs.traditionsa.lu/Main/PythonRepackaging"/>
+        <RegistryValue Name="SysArchitecture" Value="$(RegistrySysArch)"/>
+        <RegistryValue Name="SysVersion" Value="$(VersionMM)"/>
+        <RegistryValue Name="Version" Value="$(VersionMMB)"/>
+        <RegistryKey Key="InstallPath">
+          <RegistryValue Value="[INSTALLFOLDER]"/>
+          <RegistryValue Name="ExecutablePath" Value="[#python.exe]"/>
+        </RegistryKey>
+        <RegistryKey Key="PythonPath">
+          <RegistryValue Value="[lib];[dlls]"/>
+        </RegistryKey>
+      </RegistryKey>
+    </Component>
+    <Component>
+      <File Id="pythonw.exe" Source="!(bindpath.Python)\pythonw.exe"/>
+      <RegistryKey Root="HKLM" Key="SOFTWARE\Python\PythonCore\$(PythonCoreSubkey)\InstallPath">
+        <RegistryValue Name="WindowedExecutablePath" Value="[#pythonw.exe]"/>
+      </RegistryKey>
+    </Component>
+  </ComponentGroup>
+
+  <ComponentGroup Id="DocumentationFiles" Directory="doc">
+    <Files Include="!(bindpath.Python)\Doc\**">
+      <Exclude Files="!(bindpath.Python)\Doc\html\index.html"/>
+    </Files>
+    <Component Directory="html">
+      <File Id="docindex.html" Source="!(bindpath.Python)\Doc\html\index.html">
+        <Shortcut Id="index.html"
+                  Icon="python.ico"
+                  Directory="PythonVersFolder"
+                  Name="Python $(VersionMMB) Manual"/>
+      </File>
+      <RegistryKey Root="HKLM" Key="SOFTWARE\Python\PythonCore\$(PythonCoreSubkey)\Help\Main Python Documentation">
+        <RegistryValue Value="[#docindex.html]"/>
+      </RegistryKey>
+    </Component>
+  </ComponentGroup>
+
+  <ComponentGroup Id="DevelopmentFiles">
+    <Files Include="!(bindpath.Python)\include\**" Directory="include"/>
+    <Files Include="!(bindpath.Python)\libs\**" Directory="libs"/>
+  </ComponentGroup>
+
+  <ComponentGroup Id="TclTkFiles">
+    <Files Include="!(bindpath.Python)\tcl\**" Directory="tcl"/>
+    <Files Include="!(bindpath.Python)\DLLs\tcl86t.dll" Directory="dlls"/>
+    <Files Include="!(bindpath.Python)\DLLs\tk86t.dll" Directory="dlls"/>
+    <Files Include="!(bindpath.Python)\DLLs\_tkinter.pyd" Directory="dlls"/>
+    <Files Include="!(bindpath.Python)\Lib\tkinter\**" Directory="tkinter"/>
+  </ComponentGroup>
+
+  <StandardDirectory Id="ProgramFiles6432Folder">
+    <Directory Id="INSTALLFOLDER" Name="$(VersionDir)">
+      <Directory Id="dlls" Name="DLLs"/>
+      <Directory Id="doc" Name="Doc">
+        <Directory Id="html" Name="html"/>
+      </Directory>
+      <Directory Id="lib" Name="Lib">
+        <Directory Id="tkinter" Name="tkinter"/>
+      </Directory>
+      <Directory Id="include" Name="include"/>
+      <Directory Id="tcl" Name="tcl"/>
+      <Directory Id="libs" Name="libs"/>
+    </Directory>
+  </StandardDirectory>
+  <StandardDirectory Id="ProgramMenuFolder">
+    <Directory Id="PythonVersFolder" Name="Python $(VersionMM)"/>
+  </StandardDirectory>
+  
+  </Package>
+</Wix>
